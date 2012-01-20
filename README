@@ -1,0 +1,5 @@
+Set of fabfiles for install/deploy project.
+
+Types of project :
+- symfony 1.4.x
+- Symfony 2.x (todo)
