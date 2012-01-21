@@ -6,7 +6,8 @@ import os
 # Configuration for the current project
 # Change these settings
 config = {
-   'project': 'Auto-Planning',
+   'project': 'project',
+   'repository': 'repository',
    'symfony_dir': os.getenv('HOME')+'/Developpement/symfony/1.4',
    'samples': { 
         'config/databases.yml':  ['config/databases.sample.yml', 'config/databases.yml.sample'],
@@ -20,6 +21,18 @@ config = {
     },
 }
 
+# define roles host
+env.roledefs = {
+    'test': ['host'],
+    'prod': ['host'],
+}
+
+# define ssh keys
+home = os.getenv("HOME")
+keys = [home + '/.ssh/run-deploy', home + '/.ssh/id_rsa']
+env.key_filename = [key for key in keys if os.access(key, os.R_OK)]
+
+# Install the project
 @task
 def install(interactive=True):
     print(green('Installation of %s' % config['project'], True))
