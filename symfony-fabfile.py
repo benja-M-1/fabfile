@@ -40,9 +40,15 @@ def _copy_samples():
             if os.path.exists(sample):
                 if os.path.exists(name):
                     print(green('Remove %s' % name))
-                    local('rm %s' % name)
+                    if env.host is None:
+                        local('rm %s' % name)
+                    else:
+                        run('rm %s' % name)
                 print(green('Copy %s into %s' % (sample, name)))
-                local('cp %s %s' % (sample, name))
+                if env.host is None:
+                    local('cp %s %s' % (sample, name))
+                else:    
+                    run('cp %s %s' % (sample, name))
 
 # Create a user for the database
 def _create_db():
@@ -62,14 +68,25 @@ FLUSH PRIVILEGES;
     sql = sql.replace('#db.name_test#', db['name_test'])
 
     with settings(warn_only=True):
-        result = local('mysql -u%s -p < %s' % (db['user'], sql), True)
+        if env.host is None:
+            result = local('mysql -u%s -p < %s' % (db['user'], sql), True)
+        else:
+            result = run('mysql -u%s -p < %s' % (db['user'], sql), True)
     if result.failed:
         print(red('User creation failed', True))
 
 def _symfony_init():
     if not os.path.exists('lib/vendor/symfony'):
-        local('cd lib/vendor && ln -s %s symfony' % config['symfony_dir']) 
+        if env.host is None:
+            local('cd lib/vendor && ln -s %s symfony' % config['symfony_dir']) 
+        else:
+            run('svn co http://svn.symfony-project.com/branches/1.4 lib/vendor/symfony')
         
-    local('php symfony doctrine:build --all-classes -q')
-    local('php symfony cc -q')
-    local('php symfony plugin:publish-assets -q')
+    if env.host is None:
+        local('php symfony doctrine:build --all-classes -q')
+        local('php symfony cc -q')
+        local('php symfony plugin:publish-assets -q')
+    else:    
+        run('php symfony doctrine:build --all-classes -q')
+        run('php symfony cc -q')
+        run('php symfony plugin:publish-assets -q')
