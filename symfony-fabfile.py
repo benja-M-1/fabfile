@@ -21,9 +21,14 @@ config = {
 }
 
 @task
-def install():
+def install(interactive=True):
     print(green('Installation of %s' % config['project'], True))
     _copy_samples()
+    if interactive is True :
+        config['db']['user'] = prompt('Mysql user:', default='root')
+        config['db']['password'] = prompt('Mysql user password:', default='root')
+        config['db']['name'] = prompt('Mysql database name:', default='symfony')
+        config['db']['name_test'] = prompt('Mysql test database name:', default='symfony_test')
     _create_db()
     _symfony_init()
 
@@ -62,7 +67,7 @@ FLUSH PRIVILEGES;
         print(red('User creation failed', True))
 
 def _symfony_init():
-    if os.path.exists('lib/vendor/symfony') == False:
+    if not os.path.exists('lib/vendor/symfony'):
         local('cd lib/vendor && ln -s %s symfony' % config['symfony_dir']) 
         
     local('php symfony doctrine:build --all-classes -q')
