@@ -34,8 +34,12 @@ env.key_filename = [key for key in keys if os.access(key, os.R_OK)]
 
 # Install the project
 @task
-def install(interactive=True):
+def install(interactive=True, tag=None):
     print(green('Installation of %s' % config['project'], True))
+    if env.host is not None:
+        print('Installing the project...')
+        run('rm -rf * .git*')
+        run('git clone %s .' % repository)
     _copy_samples()
     if interactive is True :
         config['db']['user'] = prompt('Mysql user:', default='root')
