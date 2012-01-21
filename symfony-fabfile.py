@@ -49,6 +49,22 @@ def install(interactive=True, tag=None):
     _create_db()
     _symfony_init()
 
+# Create a git tag and push it
+@task
+def tag(tag, remote='origin'):
+    print(green('Creating tag "%s" on remote "%s"' % (tag, remote)))
+    local("git tag %s" % tag)
+    local("git push %s --tags" % remote)
+
+# Remove a git tag
+@task
+def remove_tag(tag, remote='origin'):
+    print(green('Remove tag "%s" on remote "%s"' % (tag, remote)))
+    local("git fetch -q")
+    local("git tag -d %s" % tag)
+    local("git push -q %s :refs/tags/%s" % (remote, tag))
+
+
 # Copy samples
 # Samples are configured in the samples var
 def _copy_samples():
