@@ -47,7 +47,29 @@ def install(interactive=True, tag=None):
         config['db']['name'] = prompt('Mysql database name:', default='symfony')
         config['db']['name_test'] = prompt('Mysql test database name:', default='symfony_test')
     _create_db()
-    _symfony_init()
+    _symfony_install()
+    print(green('Installation done.', True))
+
+# Deploy the project
+@task
+@roles('test')
+def deploy(tag=None, install=False):
+    if tag is None:
+        tag = _get_last_tag()
+
+    print(green('Deploying tag "%s"' % tag))
+
+    # Connect to the remote server
+    with cd(_get_remote_path()):
+        if install is not False:
+            install(tag=tag, interactive=True)
+        # update the project version
+        run('git fetch')
+        run('git checkout -q' + tag)
+        run('git submodule update --init --recursive --quiet')
+        if install is False:
+            _symfony_install()
+    print(green('Installation done.', True))
 
 # Create a git tag and push it
 @task
@@ -108,7 +130,8 @@ FLUSH PRIVILEGES;
     if result.failed:
         print(red('User creation failed', True))
 
-def _symfony_init():
+# Install symfony
+def _symfony_install():
     if not os.path.exists('lib/vendor/symfony'):
         if env.host is None:
             local('cd lib/vendor && ln -s %s symfony' % config['symfony_dir']) 
@@ -123,3 +146,19 @@ def _symfony_init():
         run('php symfony doctrine:build --all-classes -q')
         run('php symfony cc -q')
         run('php symfony plugin:publish-assets -q')
+
+# Return the current role
+def _getrole():
+    if env.host in env.roledefs['test']:
+        return 'test'
+    else:
+        return 'prod'
+
+# Return the latest tag
+def _get_last_tag():
+    local('git fetch')
+    return local('git tag -l | sort | tail -n1', True)
+
+# Return the path to the remote server
+def _get_remote_path():
+    return path[_getrole()]
