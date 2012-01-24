@@ -209,7 +209,7 @@ FLUSH PRIVILEGES;"""
 
 def symfony_install(config):
     """
-    Creates symbolic links / commits symfony's SVN, build classes, clear cache and publish assets
+    Creates symbolic links / checkout symfony's SVN, build classes, clear cache and publish assets
     """
     if not os.path.exists('lib/vendor/symfony'):
         if env.host is None:
