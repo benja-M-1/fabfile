@@ -49,9 +49,12 @@ home = os.getenv("HOME")
 keys = [home + '/.ssh/run-deploy', home + '/.ssh/id_rsa']
 env.key_filename = [key for key in keys if os.access(key, os.R_OK)]
 
-# Install the project
+
 @task
 def install(interactive=True, tag=None, config_file='config/properties.ini'):
+    """ 
+    Installs the project
+    """
     copy_sample(config_file)
     config = parse_config(config_file)
     #print(config.get('symfony', 'name'))
@@ -70,10 +73,12 @@ def install(interactive=True, tag=None, config_file='config/properties.ini'):
     symfony_install(config)
     print(green('Installation done.', True))
 
-# Deploy the project
 @task
 @roles('test')
 def deploy(tag=None, install=False):
+    """ 
+    Deploys the project
+    """
     if tag is None:
         tag = get_last_tag()
 
@@ -91,9 +96,11 @@ def deploy(tag=None, install=False):
             _symfony_install()
     print(green('Installation done.', True))
 
-# Rebuild
 @task
 def rebuild():
+    """ 
+    Clean the cache, rebuild and publish the assets of the project
+    """
     if env.host is not None:
         run(CMD_SF_CC)
         run(CMD_SF_DOCTRINE_REBUILD_ALL_TEST)
@@ -109,9 +116,11 @@ def rebuild():
         local(CMD_SF_CC)
         local(CMD_SF_PUBLISH_ASSETS)
 
-# Rebuild
 @task
 def reset_test_data(config_file='config/properties.ini'):
+    """ 
+    Resets the test data of the project
+    """
     copy_sample(config_file)
     config = parse_config(config_file)
     create_db(config)
@@ -123,34 +132,42 @@ def reset_test_data(config_file='config/properties.ini'):
         local(CMD_SF_DOCTRINE_REBUILD_ALL+' --quiet')
         local(CMD_SF_CC+' --quiet')
 
-# Rebuild
 @task
 def run_tests():
+    """ 
+    Launches all the PHPunit tests
+    """
     reset_test_data()
     if env.host is not None:
         run(CMD_PHPUNIT_TEST_ALL)
     else:
         local(CMD_PHPUNIT_TEST_ALL)
-    
 
-# Create a git tag and push it
 @task
 def tag(tag, remote='origin'):
+    """ 
+    Creates a new git tag
+    """
     print(green('Creating tag "%s" on remote "%s"' % (tag, remote)))
     local(CMD_GIT_TAG % tag)
     local("git push %s --tags" % remote)
 
-# Remove a git tag
 @task
 def remove_tag(tag, remote='origin'):
+    """ 
+    Removes a git tag
+    """
     print(green('Remove tag "%s" on remote "%s"' % (tag, remote)))
     local(CMD_GIT_FETCH+' -q')
     local(CMD_GIT_TAG_D % tag)
     local(CMD_GIT_PUSH % (remote, tag))
 
-# Create a user for the database
+
 def create_db(config):
-    # CREATING USER
+    """
+    Recreates the tables and generates the databases.yml file
+    """
+    # Creating user
     print(green('Creating database user'))
     sql = """GRANT USAGE ON * . * TO '#db.user#'@'localhost' IDENTIFIED BY '#db.password#';
 CREATE DATABASE IF NOT EXISTS `#db.name#` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
@@ -177,7 +194,7 @@ FLUSH PRIVILEGES;"""
     if result.failed:
         print(red('User creation failed', True))
     
-    # GENERATING DATABASE FILE
+    # Generating database file
     print(green('Generating database.yml file'))
     db_file = open(config.get('samples','database')+'.sample', 'r')
     file_content = db_file.read()
@@ -190,8 +207,10 @@ FLUSH PRIVILEGES;"""
     db_file.close()
     db_file_out.close()
 
-# Install symfony
 def symfony_install(config):
+    """
+    Creates symbolic links / commits symfony's SVN, build classes, clear cache and publish assets
+    """
     if not os.path.exists('lib/vendor/symfony'):
         if env.host is None:
             local('cd lib/vendor && ln -s %s symfony' % config.get('symfony', 'dir')) 
@@ -207,23 +226,32 @@ def symfony_install(config):
         run(CMD_SF_CC+' --quiet')
         run(CMD_SF_PUBLISH_ASSETS+' --quiet')
 
-# Return the current role
 def getrole():
+    """
+    Return the current role
+    """
     if env.host in env.roledefs['test']:
         return 'test'
     else:
         return 'prod'
 
-# Return the latest tag
 def get_last_tag():
+    """
+    Return the latest tag
+    """
     local(CMD_GIT_FETCH)
     return local('git tag -l | sort | tail -n1', True)
 
-# Return the path to the remote server
 def get_remote_path():
+    """
+    Return the path to the remote server
+    """
     return path[getrole()]
 
 def copy_sample(file):
+    """
+    Checks if the file exists, if not, creates it from the <file>.sample file
+    """
     if not os.path.exists(file):
         if not os.path.exists(file+'.sample'):
            abort(red(file+'.sample does not exists',True))
@@ -235,8 +263,10 @@ def copy_sample(file):
     else:
 		print(green(file+' already exists',True))
 
-
 def parse_config(file):
+    """
+    Reads the config file with the ConfigParser module
+    """
     config = ConfigParser.ConfigParser()
     config.read(file)
     return config
