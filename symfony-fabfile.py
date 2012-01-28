@@ -4,38 +4,13 @@ from fabric.contrib.console import confirm
 import os
 import ConfigParser
 
-#Symfony commands
-CMD_SF_CC = 'php symfony cc'
-CMD_SF_BUILD_CLASSES = 'php symfony doctrine:build --all-classes'
-CMD_SF_DOCTRINE_REBUILD_ALL = 'php symfony doctrine:build --all --and-load --no-confirmation'
-CMD_SF_DOCTRINE_REBUILD_ALL_TEST = CMD_SF_DOCTRINE_REBUILD_ALL+' --env=test'
-CMD_SF_DOCTRINE_CLEAN_MODEL_FILES = 'php symfony doctrine:clean-model-files'
-CMD_SF_PUBLISH_ASSETS = 'php symfony plugin:publish-assets'
-#PhpUnit commands
-CMD_PHPUNIT_TEST_ALL = 'phpunit --log-junit=undercontrol.xml --configuration=phpunit.xml.dist --coverage-clover=clover.xml'
-#GIT commands
-CMD_GIT_CLONE = 'git clone %s .' #arg1 = repository
-CMD_GIT_FETCH = 'git fetch'
-CMD_GIT_CHECKOUT = 'git checkout -q %s' #arg1 = tag
-CMD_GIT_SUBMODULE_UPDATE = 'git submodule update --init --recursive --quiet'
-CMD_GIT_TAG = 'git tag %s' #arg1 = tag
-CMD_GIT_TAG_D = 'git tag -d %s' #arg1 = tag
-CMD_GIT_PUSH = 'git push -q %s :refs/tags/%s' #arg1 = remote, #arg2 = tag
-#MySQL commands
-CMD_SQL_EXECUTE_FILE = 'mysql -u%s -p < %s' #arg1 = sql file
-#Shell commands
-CMD_COPY = 'cp %s %s'
-CMD_REMOVE_ALL = 'rm -rf * .git*'
-
-
-
 # Configuration for the current project
 # Change these settings
 db = {
-	'user': 'symfony',
-	'password': 'symfony',
-	'name': 'db_name',
-	'name_test': 'db_name_test'
+    'user': 'symfony',
+    'password': 'symfony',
+    'name': 'db_name',
+    'name_test': 'db_name_test'
 }
 
 # define roles host
@@ -49,7 +24,6 @@ home = os.getenv("HOME")
 keys = [home + '/.ssh/run-deploy', home + '/.ssh/id_rsa']
 env.key_filename = [key for key in keys if os.access(key, os.R_OK)]
 
-
 @task
 def install(interactive=True, tag=None, config_file='config/properties.ini'):
     """ 
@@ -61,8 +35,9 @@ def install(interactive=True, tag=None, config_file='config/properties.ini'):
     print(green('Installation of %s' % config.get('symfony','name'), True))
     if env.host is not None:
         print('Installing the project...')
-        run(CMD_REMOVE_ALL) 
-        run(CMD_GIT_CLONE % config.get('symfony', 'repository'))
+        delete('.*', 'rf')
+        delete('.git*', 'rf')
+        git_clone(config.get('symfony', 'repository'))
 
     if interactive is True :
         db['user'] = prompt('Mysql user:', default='root')
@@ -89,11 +64,11 @@ def deploy(tag=None, install=False):
         if install is not False:
             install(tag=tag, interactive=True)
         # update the project version
-        run(CMD_GIT_FETCH)
-        run(CMD_GIT_CHECKOUT % tag)
-        run(CMD_GIT_SUBMODULE_UPDATE)
+        git_fetch()
+        git_checkout(tag)
+        git_submodule_update()
         if install is False:
-            _symfony_install()
+            symfony_install()
     print(green('Installation done.', True))
 
 @task
@@ -101,20 +76,10 @@ def rebuild():
     """ 
     Clean the cache, rebuild and publish the assets of the project
     """
-    if env.host is not None:
-        run(CMD_SF_CC)
-        run(CMD_SF_DOCTRINE_REBUILD_ALL_TEST)
-        run(CMD_SF_DOCTRINE_REBUILD_ALL)
-        run(CMD_SF_DOCTRINE_CLEAN_MODEL_FILES)
-        run(CMD_SF_CC)
-        run(CMD_SF_PUBLISH_ASSETS)
-    else:
-        local(CMD_SF_CC)
-        local(CMD_SF_DOCTRINE_REBUILD_ALL_TEST)
-        local(CMD_SF_DOCTRINE_REBUILD_ALL)
-        local(CMD_SF_DOCTRINE_CLEAN_MODEL_FILES)
-        local(CMD_SF_CC)
-        local(CMD_SF_PUBLISH_ASSETS)
+    symfony_clear_cache()
+    symfony_build(only_classes=False)
+    symfony_clean_model_files()
+    symfony_publish_assets()
 
 @task
 def reset_test_data(config_file='config/properties.ini'):
@@ -124,13 +89,9 @@ def reset_test_data(config_file='config/properties.ini'):
     copy_sample(config_file)
     config = parse_config(config_file)
     create_db(config)
-    
-    if env.host is not None:
-        run(CMD_SF_DOCTRINE_REBUILD_ALL+' --quiet')
-        run(CMD_SF_CC+' --quiet')
-    else:
-        local(CMD_SF_DOCTRINE_REBUILD_ALL+' --quiet')
-        local(CMD_SF_CC+' --quiet')
+
+    symfony_build()
+    symfony_clear_cache()
 
 @task
 def run_tests():
@@ -138,30 +99,7 @@ def run_tests():
     Launches all the PHPunit tests
     """
     reset_test_data()
-    if env.host is not None:
-        run(CMD_PHPUNIT_TEST_ALL)
-    else:
-        local(CMD_PHPUNIT_TEST_ALL)
-
-@task
-def tag(tag, remote='origin'):
-    """ 
-    Creates a new git tag
-    """
-    print(green('Creating tag "%s" on remote "%s"' % (tag, remote)))
-    local(CMD_GIT_TAG % tag)
-    local("git push %s --tags" % remote)
-
-@task
-def remove_tag(tag, remote='origin'):
-    """ 
-    Removes a git tag
-    """
-    print(green('Remove tag "%s" on remote "%s"' % (tag, remote)))
-    local(CMD_GIT_FETCH+' -q')
-    local(CMD_GIT_TAG_D % tag)
-    local(CMD_GIT_PUSH % (remote, tag))
-
+    do('phpunit')
 
 def create_db(config):
     """
@@ -180,20 +118,17 @@ FLUSH PRIVILEGES;"""
     sql = sql.replace('#db.password#', db['password'])
     sql = sql.replace('#db.name#', db['name'])
     sql = sql.replace('#db.name_test#', db['name_test'])
-    
+
     query_file_name = 'config/create_dbs.sql';
     query_file = open(query_file_name,'w')
     query_file.write(sql);
     query_file.close();
-    
+
     with settings(warn_only=True):
-        if env.host is None:
-            result = local(CMD_SQL_EXECUTE_FILE % (db['user'], query_file_name), True)
-        else:
-            result = run(CMD_SQL_EXECUTE_FILE % (db['user'], query_file_name), True)
+        result = sql_load(user=db['user'], password=db['password'], sql=query_file_name)
     if result.failed:
         print(red('User creation failed', True))
-    
+
     # Generating database file
     print(green('Generating database.yml file'))
     db_file = open(config.get('samples','database')+'.sample', 'r')
@@ -216,15 +151,10 @@ def symfony_install(config):
             local('cd lib/vendor && ln -s %s symfony' % config.get('symfony', 'dir')) 
         else:
             run('svn co http://svn.symfony-project.com/branches/1.4 lib/vendor/symfony')
-        
-    if env.host is None:
-        local(CMD_SF_BUILD_CLASSES+' --quiet')
-        local(CMD_SF_CC+' --quiet')
-        local(CMD_SF_PUBLISH_ASSETS+' --quiet')
-    else:    
-        run(CMD_SF_BUILD_CLASSES+' --quiet')
-        run(CMD_SF_CC+' --quiet')
-        run(CMD_SF_PUBLISH_ASSETS+' --quiet')
+
+    symfony_build()
+    symfony_clear_cache()
+    symfony_publish_assets()
 
 def getrole():
     """
@@ -239,7 +169,7 @@ def get_last_tag():
     """
     Return the latest tag
     """
-    local(CMD_GIT_FETCH)
+    git_fetch()
     return local('git tag -l | sort | tail -n1', True)
 
 def get_remote_path():
@@ -254,14 +184,11 @@ def copy_sample(file):
     """
     if not os.path.exists(file):
         if not os.path.exists(file+'.sample'):
-           abort(red(file+'.sample does not exists',True))
+            abort(red(file+'.sample does not exists',True))
 
-        if env.host is None:
-            local(CMD_COPY % (file+'.sample', file))
-        else:
-            run(CMD_COPY %  (file+'.sample', file))
+        copy(file+'.sample', file)
     else:
-		print(green(file+' already exists',True))
+        print(green(file+' already exists',True))
 
 def parse_config(file):
     """
@@ -270,3 +197,89 @@ def parse_config(file):
     config = ConfigParser.ConfigParser()
     config.read(file)
     return config
+
+def do(command, **kwargs):
+    """
+    Execute a command with the right method 
+    as the envis local or remote
+    """
+    if env.host is None:
+        return local(command, kwargs)
+    else:
+        return run(command, kwargs)
+
+def symfony_clear_cache(hard=False):
+    """
+    Clear the symfony cache
+    """
+    if hard is True:
+        do('rm -rf cache/*')
+    else:
+        do('php symfony cc')
+
+def symfony_build(only_classes=True, load=False, env='all'):
+    """
+    Run doctrine build command
+    """ 
+    options = ['--all-classes' if only_classes is True else '--all']
+    if load is True:
+        options.append('--and-load')
+    options.append('--env=\'%s\'' % env)
+    options.append('--no-confirmation')
+    options.append('--quiet')
+    do('php symfony doctrine:build %s' % ' '.join(options))
+
+def symfony_publish_assets():
+    """
+    Publish assets
+    """
+    do('php symfony plugin:publish-assets')
+
+def symfony_clean_model_files():
+    """
+    Clean model fils that no longer exists in YAML schema
+    """
+    do('php symfony doctrine:clean-model-files')
+
+def git_clone(repository, path='.'):
+    """
+    Clone a repository in a specific path
+    """
+    do('git clone %s %s' % (repository, path))
+
+def git_fetch():
+    """
+    Fetch a repository
+    """
+    do('git fetch --all')
+
+def git_checkout(commit):
+    """
+    Checkout a commit, branch or a tag
+    """
+    do('git checkout -q %s' % commit)
+
+def git_submodule_update():
+   """
+   Update submodules
+   """
+   do('git submodule update --init --recursive --quiet')
+
+def sql_load(user, sql, password=''):
+    """
+    Load an sql file.
+    """
+    return do('mysql -u%s -p%s < %s' % (user, password, sql), capture=True)
+
+def copy(source, target):
+    """
+    Copy a file or a folder in a target
+    """
+    do('cp %s %s' % (source, target))
+
+def delete(path, options=''):
+    """
+    Delete a file or a directory.
+    Add options to the rm command (rf for instance)
+    """
+    do('rm %s %s' % (options, path))
