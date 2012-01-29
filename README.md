@@ -78,7 +78,10 @@ You can set the mysql user, password and databases directly in the ```fabfile```
 Requirements
 ===
 
-To use these fabfiles you need [fabric](http://docs.fabfile.org/en/1.3.3/index.html).
+To use these fabfiles you need 
+
+ * [fabric >= 1.3.4](http://docs.fabfile.org/en/1.3.3/index.html).
+ * [PyYAML](http://pyyaml.org)
 
 TODO
 ===
