@@ -207,15 +207,15 @@ def parse_config(file):
     config.read(file)
     return config
 
-def do(command, **kwargs):
+def do(*args, **kwargs):
     """
-    Execute a command with the right method 
-    as the envis local or remote
+    Execute a command with the right method
+    as the env is local or remote
     """
     if env.host is None:
-        return local(command, kwargs)
+        return local(*args, **kwargs)
     else:
-        return run(command, kwargs)
+        return run(*args, **kwargs)
 
 def symfony_clear_cache(hard=False):
     """
