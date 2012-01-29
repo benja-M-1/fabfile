@@ -2,16 +2,9 @@ from fabric.api import *
 from fabric.colors import green, red
 from fabric.contrib.console import confirm
 import os
-import ConfigParser
-
-# Configuration for the current project
-# Change these settings
-db = {
-    'user': 'symfony',
-    'password': 'symfony',
-    'name': 'db_name',
-    'name_test': 'db_name_test'
-}
+from ConfigParser import ConfigParser
+import yaml
+import re
 
 # define roles host
 env.roledefs = {
@@ -39,11 +32,7 @@ def install(interactive=True, tag=None, config_file='config/properties.ini'):
         delete('.git*', 'rf')
         git_clone(config.get('symfony', 'repository'))
 
-    if interactive is True :
-        db['user'] = prompt('Mysql user:', default='root')
-        db['password'] = prompt('Mysql user password:', default='root')
-        db['name'] = prompt('Mysql database name:', default='symfony')
-        db['name_test'] = prompt('Mysql test database name:', default='symfony_test')
+    configure_db(config, interactive)
     create_db(config)
     symfony_install(config)
     print(green('Installation done.', True))
@@ -101,6 +90,30 @@ def run_tests():
     reset_test_data()
     do('phpunit')
 
+def configure_db(config, interactive=False):
+    """
+    Configure the database configuration list.
+    """
+    # Read the databases.yml.sample to get the default values
+    db_config = yaml.load(open(config.get('samples','database')+'.sample', 'r'))
+    config.add_section('database')
+    config.add_section('database_default')
+    config.set('database_default', 'username', db_config['all']['doctrine']['param']['username'])
+    config.set('database_default', 'password', db_config['all']['doctrine']['param']['password'])
+    config.set('database_default', 'name', re.split("[;=]", db_config['all']['doctrine']['param']['dsn']).pop())
+    config.set('database_default', 'name_test', re.split("[;=]", db_config['test']['doctrine']['param']['dsn']).pop())
+
+    if interactive is True :
+        config.set('database', 'username', prompt('Mysql user:', default=config.get('database_default', 'username')))
+        config.set('database', 'password', prompt('Mysql user password:', default=config.get('database_default', 'password')))
+        config.set('database', 'name', prompt('Mysql database name:', default=config.get('database_default', 'name')))
+        config.set('database', 'name_test', prompt('Mysql test database name:', default=config.get('database_default', 'name_test')))
+    else:
+        # Copy default values in the database section if not interactive.
+        for key, value in config.items('database_default'):
+            config.set('database', key, value)
+    
+
 def create_db(config):
     """
     Recreates the tables and generates the databases.yml file
@@ -114,10 +127,10 @@ CREATE DATABASE IF NOT EXISTS `#db.name_test#` DEFAULT CHARACTER SET utf8 COLLAT
 GRANT ALL PRIVILEGES ON `#db.name_test#` . * TO  '#db.user#'@'localhost';
 FLUSH PRIVILEGES;"""
 
-    sql = sql.replace('#db.user#', db['user'])
-    sql = sql.replace('#db.password#', db['password'])
-    sql = sql.replace('#db.name#', db['name'])
-    sql = sql.replace('#db.name_test#', db['name_test'])
+    sql = sql.replace('#db.user#', config.get('database', 'username'))
+    sql = sql.replace('#db.password#', config.get('database', 'password'))
+    sql = sql.replace('#db.name#', config.get('database', 'name'))
+    sql = sql.replace('#db.name_test#', config.get('database', 'name_test'))
 
     query_file_name = 'config/create_dbs.sql';
     query_file = open(query_file_name,'w')
@@ -125,22 +138,18 @@ FLUSH PRIVILEGES;"""
     query_file.close();
 
     with settings(warn_only=True):
-        result = sql_load(user=db['user'], password=db['password'], sql=query_file_name)
+        result = sql_load(user=config.get('database', 'username'), password=config.get('database', 'password'), sql=query_file_name)
     if result.failed:
         print(red('User creation failed', True))
 
     # Generating database file
     print(green('Generating database.yml file'))
-    db_file = open(config.get('samples','database')+'.sample', 'r')
-    file_content = db_file.read()
-    file_content = file_content.replace('#db.user#', db['user'])
-    file_content = file_content.replace('#db.password#', db['password'])
-    file_content = file_content.replace('#db.name#', db['name'])
-    file_content = file_content.replace('#db.name_test#', db['name_test'])
-    db_file_out = open(config.get('samples','database'), 'w')
-    db_file_out.write(file_content)
-    db_file.close()
-    db_file_out.close()
+    db_config = yaml.load(open(config.get('samples','database')+'.sample', 'r'))
+    db_config['all']['doctrine']['param']['username'] = config.get('database', 'username')
+    db_config['all']['doctrine']['param']['username'] = config.get('database', 'password')
+    db_config['all']['doctrine']['param']['dsn'] = db_config['all']['doctrine']['param']['dsn'].replace(config.get('database_default', 'name'), config.get('database', 'name'))
+    db_config['test']['doctrine']['param']['dsn'] = db_config['test']['doctrine']['param']['dsn'].replace(config.get('database_default', 'name_test'), config.get('database', 'name_test'))
+    yaml.dump(db_config, open(config.get('samples','database'), 'w'), indent=2)
 
 def symfony_install(config):
     """
@@ -194,7 +203,7 @@ def parse_config(file):
     """
     Reads the config file with the ConfigParser module
     """
-    config = ConfigParser.ConfigParser()
+    config = ConfigParser()
     config.read(file)
     return config
 
