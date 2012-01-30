@@ -149,7 +149,7 @@ FLUSH PRIVILEGES;"""
     db_config['all']['doctrine']['param']['username'] = config.get('database', 'password')
     db_config['all']['doctrine']['param']['dsn'] = db_config['all']['doctrine']['param']['dsn'].replace(config.get('database_default', 'name'), config.get('database', 'name'))
     db_config['test']['doctrine']['param']['dsn'] = db_config['test']['doctrine']['param']['dsn'].replace(config.get('database_default', 'name_test'), config.get('database', 'name_test'))
-    yaml.dump(db_config, open(config.get('samples','database'), 'w'), indent=2)
+    yaml.dump(db_config, open(config.get('samples','database'), 'w'), indent=2, default_flow_style=False)
 
 def symfony_install(config):
     """
