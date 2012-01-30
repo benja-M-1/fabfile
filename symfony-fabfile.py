@@ -165,7 +165,7 @@ def symfony_install(config):
     symfony_clear_cache()
     symfony_publish_assets()
 
-def getrole():
+def get_role():
     """
     Return the current role
     """
@@ -185,7 +185,7 @@ def get_remote_path():
     """
     Return the path to the remote server
     """
-    return path[getrole()]
+    return path[get_role()]
 
 def copy_sample(file):
     """
