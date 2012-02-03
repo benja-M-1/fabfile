@@ -218,6 +218,15 @@ def do(*args, **kwargs):
     else:
         return run(*args, **kwargs)
 
+def go(*args, **kwargs):
+    """
+    Execute cd or lcd depending of the host.
+    """
+    if env.host is None:
+        lcd(*args, **kwargs)
+    else:
+        cd(*args, **kwargs)
+
 def symfony_clear_cache(hard=False):
     """
     Clear the symfony cache
