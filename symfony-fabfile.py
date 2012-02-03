@@ -34,7 +34,7 @@ def install(interactive=True, tag=None, config_file='config/properties.ini'):
         git_clone(config.get('symfony', 'repository'))
 
     configure_db(config, interactive)
-    create_db(config)
+    create_db(config, interactive)
     symfony_install(config)
     print(green('Installation done.', True))
 
@@ -115,7 +115,7 @@ def configure_db(config, interactive=False):
             config.set('database', key, value)
     
 
-def create_db(config):
+def create_db(config, interactive=False):
     """
     Recreates the tables and generates the databases.yml file
     """
@@ -139,6 +139,11 @@ FLUSH PRIVILEGES;"""
     query_file.close();
 
     with settings(warn_only=True):
+        if interactive is True:
+            print green('We need a sql user with root permissions to execute the user and database creation.')
+            username = prompt('Mysql user with root permissions:', default=config.get('database_default', 'username'))
+            password = getpass.getpass('Password : [%s]' % config.get('database_default', 'password'))
+
         result = sql_load(user=config.get('database', 'username'), password=config.get('database', 'password'), sql=query_file_name)
     if result.failed:
         print(red('User creation failed', True))
