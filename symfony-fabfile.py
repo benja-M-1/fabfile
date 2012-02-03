@@ -5,6 +5,7 @@ import os
 from ConfigParser import ConfigParser
 import yaml
 import re
+import getpass
 
 # define roles host
 env.roledefs = {
@@ -105,7 +106,7 @@ def configure_db(config, interactive=False):
 
     if interactive is True :
         config.set('database', 'username', prompt('Mysql user:', default=config.get('database_default', 'username')))
-        config.set('database', 'password', prompt('Mysql user password:', default=config.get('database_default', 'password')))
+        config.set('database', 'password', getpass.getpass('Mysql user password: [%s]' % config.get('database_default', 'password')))
         config.set('database', 'name', prompt('Mysql database name:', default=config.get('database_default', 'name')))
         config.set('database', 'name_test', prompt('Mysql test database name:', default=config.get('database_default', 'name_test')))
     else:
